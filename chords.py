@@ -24,13 +24,23 @@ class Song:
         segments = []
         last_label = None
         for part in text.split("\n\n"):
-            segments.append(Segment.from_text(part, default_label=last_label))
+            try:
+                segments.append(Segment.from_text(part, default_label=last_label))
+            except ValueError:
+                print("Couldn't convert")
+                print(part)
+                raise
             last_label = segments[-1].label
         return Song(segments=segments)
 
     def __str__(self):
         """Convert a song to a textual (monospace-requiring) format"""
         return "\n".join(str(seg) for seg in self.segments)
+
+    def to_tex(self):
+        return "\\begin{song}[verse/numbered]{title={}, music={}}\n%s\n\\end{song}" % (
+            "\n".join(seg.to_tex() for seg in self.segments),
+        )
 
     def __repr__(self):
         return "<Song: [{}]>".format(", ".join(repr(seg) for seg in self.segments))
@@ -110,6 +120,38 @@ class Segment:
             buffer.write("\n")
         return buffer.getvalue()
 
+    def to_tex(self):
+        buffer = io.StringIO()
+        if self.label and any(
+            self.label.lower().startswith(x) for x in [
+                "verse",
+                "chorus",
+                "bridge",
+            ]
+        ):
+            label = self.label.split()[0].lower()
+        else:
+            label = "verse"
+        buffer.write(fr"\begin{{{label}}}")
+        buffer.write("\n")
+        for line, chords in self.lines:
+            for i, char in enumerate(line):
+                if i in chords:
+                    chord = str(chords[i])
+                    buffer.write(fr"^{{{chord}}}")
+                buffer.write(char)
+            remaining = [k for k in chords if k>i]
+            if remaining:
+                for k in sorted(remaining):
+                    chord = chords[k]
+                    buffer.write(f" ^{{{chord}}}")
+                buffer.write(r" \empty")
+            buffer.write(" \\\\\n")
+        buffer.write(fr"\end{{{label}}}")
+        buffer.write("\n")
+        return buffer.getvalue()
+
+
     def __add__(self, other):
         """Transpose a song a given amount of semitones upwards."""
         if isinstance(other, int):
@@ -163,7 +205,7 @@ class Chord:
     Chords contain base note, scale, preference for # vs b, modifiers such as
     "sus4", and an optional bass note.
     """
-    mods = ["7", "9", "11", "13", "maj7", "aug", "sus4", "sus2", "dim"]
+    mods = ["-", "5", "6", "7", "9", "11", "13", "maj7", "aug", "sus4", "sus2", "dim", "add9"]
     notes = ['C', '', 'D', '', 'E', 'F', '', 'G', '', 'A', '', 'B']
     def __init__(self, *, val, scale, shiftpref, mods, bass):
         self.mods = mods
@@ -294,19 +336,29 @@ class Chord:
 @click.command()
 @click.argument("file", type=click.File())
 @click.option("--transpose", "-t", type=int)
-@click.option("--prefer", "-p", type=click.Choice(["#", "b"]))
-def cli(file, transpose, prefer):
+@click.option("--prefer", "-p", type=click.Choice(["#", "b", "sharp", "flat"]))
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["plain", "tex"]),
+    default="plain",
+)
+def cli(file, transpose, prefer, format):
     song = Song.from_text(file.read())
     if transpose:
         song += transpose
     if prefer:
+        prefer = {"sharp": "#", "flat": "b"}.get(prefer, prefer)
         if prefer == "#":
             song = +song
         elif prefer == "b":
             song = -song
         else:
             raise ValueError("Unknown preference value {!r}".format(prefer))
-    print(song)
+    if format == "plain":
+        print(song)
+    elif format == "tex":
+        print(song.to_tex())
 
 
 if __name__ == '__main__':
