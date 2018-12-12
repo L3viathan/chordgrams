@@ -3,6 +3,7 @@ import io
 
 import click
 
+
 def clump(iterable, n):
     i = iter(iterable)
     while True:
@@ -25,7 +26,9 @@ class Song:
         last_label = None
         for part in text.split("\n\n"):
             try:
-                segments.append(Segment.from_text(part, default_label=last_label))
+                segments.append(
+                    Segment.from_text(part, default_label=last_label)
+                )
             except ValueError:
                 print("Couldn't convert")
                 print(part)
@@ -38,17 +41,20 @@ class Song:
         return "\n".join(str(seg) for seg in self.segments)
 
     def to_tex(self):
-        return "\\begin{song}[verse/numbered]{title={}, music={}}\n%s\n\\end{song}" % (
-            "\n".join(seg.to_tex() for seg in self.segments),
+        return (
+            "\\begin{song}[verse/numbered]{title={}, music={}}\n%s\n\\end{song}"
+            % ("\n".join(seg.to_tex() for seg in self.segments),)
         )
 
     def __repr__(self):
-        return "<Song: [{}]>".format(", ".join(repr(seg) for seg in self.segments))
+        return "<Song: [{}]>".format(
+            ", ".join(repr(seg) for seg in self.segments)
+        )
 
     def __add__(self, other):
         """Transpose the entire song upwards."""
         if isinstance(other, int):
-            return Song(segments=[segment+other for segment in self.segments])
+            return Song(segments=[segment + other for segment in self.segments])
         return NotImplemented
 
     def __iadd__(self, other):
@@ -62,7 +68,7 @@ class Song:
     def __sub__(self, other):
         """Transpose the entire song downwards."""
         if isinstance(other, int):
-            return Song(segments=[segment-other for segment in self.segments])
+            return Song(segments=[segment - other for segment in self.segments])
         return NotImplemented
 
     def __pos__(self):
@@ -72,7 +78,6 @@ class Song:
     def __neg__(self):
         """Change the entire song to use bs instead of #s."""
         return Song(segments=[-segment for segment in self.segments])
-
 
 
 class Segment:
@@ -111,7 +116,7 @@ class Segment:
             for i in chords:
                 chord = str(chords[i])
                 spaces = i - lo
-                cline.write(" "*spaces)
+                cline.write(" " * spaces)
                 cline.write(chord)
                 lo += spaces + len(chord)
             buffer.write(cline.getvalue())
@@ -123,11 +128,8 @@ class Segment:
     def to_tex(self):
         buffer = io.StringIO()
         if self.label and any(
-            self.label.lower().startswith(x) for x in [
-                "verse",
-                "chorus",
-                "bridge",
-            ]
+            self.label.lower().startswith(x)
+            for x in ["verse", "chorus", "bridge"]
         ):
             label = self.label.split()[0].lower()
         else:
@@ -140,7 +142,7 @@ class Segment:
                     chord = str(chords[i])
                     buffer.write(fr"^{{{chord}}}")
                 buffer.write(char)
-            remaining = [k for k in chords if k>i]
+            remaining = [k for k in chords if k > i]
             if remaining:
                 for k in sorted(remaining):
                     chord = chords[k]
@@ -151,14 +153,13 @@ class Segment:
         buffer.write("\n")
         return buffer.getvalue()
 
-
     def __add__(self, other):
         """Transpose a song a given amount of semitones upwards."""
         if isinstance(other, int):
             return Segment(
                 label=self.label,
                 lines=[
-                    (tline, {k: v+other for k, v in cline.items()})
+                    (tline, {k: v + other for k, v in cline.items()})
                     for tline, cline in self.lines
                 ],
             )
@@ -199,14 +200,31 @@ class Segment:
             ],
         )
 
+
 class Chord:
     """A chord.
 
     Chords contain base note, scale, preference for # vs b, modifiers such as
     "sus4", and an optional bass note.
     """
-    mods = ["-", "5", "6", "7", "9", "11", "13", "maj7", "aug", "sus4", "sus2", "dim", "add9"]
-    notes = ['C', '', 'D', '', 'E', 'F', '', 'G', '', 'A', '', 'B']
+
+    mods = [
+        "-",
+        "5",
+        "6",
+        "7",
+        "9",
+        "11",
+        "13",
+        "maj7",
+        "aug",
+        "sus4",
+        "sus2",
+        "dim",
+        "add9",
+    ]
+    notes = ["C", "", "D", "", "E", "F", "", "G", "", "A", "", "B"]
+
     def __init__(self, *, val, scale, shiftpref, mods, bass):
         self.mods = mods
         self.shiftpref = shiftpref
@@ -232,7 +250,7 @@ class Chord:
 
         if text and text[0] in "#b":
             shiftpref, text = text[0], text[1:]
-            val = (val + "b#".index(shiftpref)*2-1) % 12
+            val = (val + "b#".index(shiftpref) * 2 - 1) % 12
         else:
             shiftpref = None
 
@@ -248,18 +266,20 @@ class Chord:
             for mod in Chord.mods:
                 if text.startswith(mod):
                     mods.append(mod)
-                    text = text[len(mod):]
+                    text = text[len(mod) :]
                     break
             else:
                 if text.startswith("/"):
                     bass = Chord.notes.index(text[1])
                     text = text[2:]
                     if text:
-                        bass = (bass + "b#".index(text[0])*2-1) % 12
+                        bass = (bass + "b#".index(text[0]) * 2 - 1) % 12
                         text = text[1:]
                 if text:
                     raise ValueError(f"Remaining mods: {text}")
-        return Chord(val=val, scale=scale, mods=mods, shiftpref=shiftpref, bass=bass)
+        return Chord(
+            val=val, scale=scale, mods=mods, shiftpref=shiftpref, bass=bass
+        )
 
     def __str__(self):
         """Return the string representation of the chord."""
@@ -279,11 +299,11 @@ class Chord:
         """Transpose a chord a given amount of semitones upwards."""
         if isinstance(other, int):
             return Chord(
-                val=self.val+other,
+                val=self.val + other,
                 scale=self.scale,
                 mods=self.mods[:],
                 shiftpref=self.shiftpref,
-                bass=self.bass+other if self.bass else self.bass,
+                bass=self.bass + other if self.bass else self.bass,
             )
         return NotImplemented
 
@@ -327,9 +347,9 @@ class Chord:
         text = Chord.notes[num]
         if not text:
             if self.shiftpref == "#":
-                text = Chord.notes[num-1] + "#"
+                text = Chord.notes[num - 1] + "#"
             else:
-                text = Chord.notes[num+1 % 12] + "b"
+                text = Chord.notes[num + 1 % 12] + "b"
         return text
 
 
@@ -338,10 +358,7 @@ class Chord:
 @click.option("--transpose", "-t", type=int)
 @click.option("--prefer", "-p", type=click.Choice(["#", "b", "sharp", "flat"]))
 @click.option(
-    "--format",
-    "-f",
-    type=click.Choice(["plain", "tex"]),
-    default="plain",
+    "--format", "-f", type=click.Choice(["plain", "tex"]), default="plain"
 )
 def cli(file, transpose, prefer, format):
     song = Song.from_text(file.read())
@@ -361,5 +378,5 @@ def cli(file, transpose, prefer, format):
         print(song.to_tex())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
